@@ -1,4 +1,4 @@
-#  MSDS 6373- Time Series Analysis - Section 1
+#  MSDS 6373- Time Series Analysis - Unit 1 Async Code 
 
 #  Team Member:  Jeffery Lancon
 #  
@@ -182,25 +182,33 @@ plot(Price,type='l',xlim=c(0,length(Price)),ylim = c(min(Price),max(Price)),xlab
 acf(Price[1:750],plot=TRUE, ylim = c(-1,1),col="blue")
 acf(Price[751:1500],plot=TRUE, ylim = c(-1,1),col="blue")
 
-mean(Price)
+mean(Price) #2.457421
 
 #---------- Slide 127
 
-xdf = read.csv(file.choose(),header = TRUE)
+xdf = read.csv(file.choose(),header = TRUE) #TenYearBondRate.csv
 x = as.numeric(paste(xdf$Adj.Close))
 x = x[!is.na(x)]
-n=length(x) #n = 1509
-nlag=1508 #n-1
-m=mean(x) # 2.457421
-v=var(x,na.rm = TRUE) # 0.350049
-gamma0=var(x)*(n-1)/n # 0.3498171
-aut=acf(x,lag.max=1508) #n-1
-sum=0
-for (k in 1:nlag) {sum=sum+(1-k/n)*aut$acf[k+1]*gamma0}
-vxbar=2*sum/n+gamma0/n #note the mult of sum by 2
-vxbar
+n=length(x) #n = 2014
+nlag=n-1 #2013
+m=mean(x) # 2.33198
 
-Alt_vxbar = (1 + 2*sum)*(v/n)
+v=var(x,na.rm = TRUE) # 0.24714
+gamma0=var(x)*(n-1)/n # 0.24701  Multiplied by n-1 and divided by n because var 
+                      # is divided by n-1 and gamma0 is divided by n
+aut=acf(x,lag.max=nlag) #n-1
+aut$acf[2]
+aut[0] # 1.000
+aut[1] # 0.995
+aut$acf[2] #0.995
+
+sum=0
+for (k in 1:nlag) {
+  sum=sum+(1-(k/n))*aut$acf[k+1]*gamma0
+  }
+vxbar=2*sum/n+gamma0/n #note the mult of sum by 2
+print(paste0("vxbar value: ",vxbar))
+  # [1] "vxbar value: 0.00338288625000408"
 
 # Confidence Interval - Slide 128
 
@@ -209,5 +217,14 @@ MOE = 1.96*sqrt(vxbar)
 LL = mean(x) - MOE
 UL = mean(x) + MOE
 
-print(paste0("Lower Limit: ",LL))
-print(paste0("Upper Limit: ",UL))
+print(paste0("Lower Limit: ",LL)) #[1] "Lower Limit: 2.21797998359314"
+print(paste0("Upper Limit: ",UL)) #[1] "Upper Limit: 2.44597731531451"
+
+# ALternate way to derive value for vxbar -- More closely follows formula in text
+sumAlt=0
+for (k in 1:nlag) {
+  sumAlt=sumAlt+(1-(k/n))*aut$acf[k+1] # Follows the book formula layout
+}
+vxbar_Alt=(1+ 2*sumAlt)*(gamma0/n) 
+print(paste0("vxbar_Alt value: ",vxbar_Alt))
+  # [1] "vxbar_Alt value: 0.0033828862500041"
