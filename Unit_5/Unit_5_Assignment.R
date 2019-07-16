@@ -1,4 +1,4 @@
-#  MSDS 6373- Time Series Analysis - Unit 5 Async Code 
+#  MSDS 6373- Time Series Analysis - Unit 5 Assignment Code 
 
 #  Team Member:  Jeffery Lancon
 #  
@@ -7,6 +7,9 @@
 
 
 library(tswge)
+library(dplyr)
+library(tidyr)
+library(stats)
 # https://cran.r-project.org/web/packages/tswge/tswge.pdf
 
 
@@ -14,6 +17,147 @@ library(tswge)
 library(rstudioapi)
 current_path <- getActiveDocumentContext()$path
 setwd(dirname(current_path ))
+
+
+# Read a txt file
+my_data <-read.delim(file.choose(), 
+                     sep =";", header = TRUE, dec =".",stringsAsFactors=FALSE)
+
+# Create a new variable 'datetime', combining Date and Time variables
+my_data$datetime <- as.POSIXct(paste(my_data$Date, my_data$Time), format="%d/%m/%Y %H:%M:%S")
+
+# Reducing dataset to variables we will use in the study
+df <- my_data[,c('datetime','Global_active_power')]
+
+# Removing data with missing observations 
+df<-df[!(df$Global_active_power=="?"),] # 25979 missing observations
+
+# Converting power consumption to numeric variable
+df$Global_active_power <- as.numeric(df$Global_active_power)
+summary(df)
+
+plot(df[1:262080,'Global_active_power'],type='l',
+     xlim=c(0,262080),
+     ylim = c(min(df$Global_active_power),10),
+     xlab = 'Time(min) Realization',col='blue',
+     ylab = 'Power Consumption kW.min',
+     main = 'Household Electric Power Consumption (kW.min)',
+     cex.main=0.8)
+
+# AIC5 on power consumption data - minute ganularity
+#plotts.wge(df$Global_active_power)
+#plotts.sample.wge(df$Global_active_power)
+aic5.wge(df$Global_active_power)
+    # ---------WORKING... PLEASE WAIT... 
+    # 
+    # 
+    # Five Smallest Values of  aic 
+    #       p    q        aic
+    # 12    3    2  -2.677994
+    # 17    5    1  -2.677597
+    # 16    5    0  -2.677395
+    # 18    5    2  -2.677279
+    # 14    4    1  -2.677269
+
+
+#Walmart Store 9 Item 50 Filtering / spectral analysis / AR(3)
+# Read in the data
+Walmart = read.csv(file.choose(),header = TRUE)
+
+# Load the Data
+Stor9Item50 = Walmart %>% filter(item == 50 & store == 9) #1826 obs 5 variables
+
+#Look at and Visualize the data
+head(Stor9Item50)
+plotts.sample.wge(Stor9Item50$sales)
+
+# AIC5 Model for Walmart data Store 9 Item 50
+aic5.wge(Stor9Item50$sales)
+    # ---------WORKING... PLEASE WAIT... 
+    # 
+    # 
+    # Five Smallest Values of  aic 
+    #       p    q        aic
+    # 15    4    2   4.991650
+    # 17    5    1   5.009865
+    # 18    5    2   5.021469
+    # 14    4    1   5.073902
+    # 12    3    2   5.114417
+
+# Generate the realization from an ARMA model
+# You pick the p & q
+# Equation: X_t - 0.90X_t-1 + 0.20X_t-2 - 0.70X_t-3 + 0.30X_t-4 
+#           + 0.20X_t-5 = a_t + 0.53a_t-1 - 0.38a_t-2 - 0.60_t-3
+plotts.true.wge(phi=c(0.90, -0.20, 0.70, -0.30,-.2),theta=c(-0.53, 0.38, 0.6))
+
+factor.wge(phi=c(0.90, -0.20, 0.70, -0.30,-.2))
+factor.wge(phi=c(-0.53, 0.38, 0.6))
+
+
+# Use AIC 5 to identify the top five quality models with respect to AIC
+# for the airline cancellation data from the attached data set. 
+# Comment on which are AR, MA, and ARMA.
+SWA = read.csv(file.choose(),header=TRUE)
+plotts.wge(SWA$arr_cancelled)
+plotts.sample.wge(SWA$arr_cancelled)
+aic5.wge(SWA$arr_cancelled)
+
+
+
+
+
+
+#### Extra code for consolidating values by date-time  ####
+
+library(dplyr)
+library(plyr)
+df$Month <- strftime(df$datetime, format="%Y/%m")
+df$Year <- strftime(df$datetime, format="%Y")
+df$Day <- strftime(df$datetime, format = "%Y/%m/%d")
+df$hour <- strftime(df$datetime, format = "%Y/%m/%d %H")
+
+# Reducing granularity of data to monthly values and summing the power consumption
+df_monthly <- ddply(df, .(Month), summarize, monthly_sum=sum(Global_active_power))
+
+
+plotts.wge(df_monthly$monthly_sum)
+parzen.wge(df_monthly$monthly_sum, trunc = 14)
+
+
+
+## Weekly summary of data ####
+library(tidyverse)
+library(magrittr)
+library(lubridate)
+df_wk <- df %>% group_by(Year,week = isoweek(datetime)) %>% summarise(weekly_sum = sum(Global_active_power))
+
+
+?isoweek()
+
+df %>%
+  group_by(Year, Month) %>%
+  summarise(Rain = sum(Rain))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Section / Async Video 5.3.1 Generating MA(1) Data Slides 17,18
 # Equation: Xt = at-0.9at_1 + 0.4at_2

@@ -108,3 +108,35 @@ factor.wge(phi=c(1.384,-0.359,-0.309,0.063,0.317,-0.140,-0.0587,-0.199,0.2877))
 
 
 plotts.true.wge(n=length(Stor9Item50$sales),phi=c(1.384,-0.359,-0.309,0.063,0.317,-0.140,-0.0587,-0.199,0.2877))
+
+
+##############################
+# Factoring Characteristic Equation (by hand model)
+
+# x_t + 0.5X_t-1 + 0.6X_t-2 = a_t
+
+a = 0.6 # Squared term - note signs
+b = 0.5 # Single term - note signs
+c = 1  #no term - note signs
+
+if ((b^2-(4*a*c)) < 0){
+  r1a = -b/(2*a) 
+  r1b = ((sqrt(abs(b^2-(4*a*c))))/(2*a))
+  print(paste0('complex root: ',round(r1a,4),' ± ', round(r1b,4),'i'))
+  Modulus = sqrt(r1a^2+r1b^2)
+  print(paste0('modulus |r| = ',round(Modulus,4),' Stationary if greater than 1'))
+  print(paste0('Absolute reciprical: ',1/Modulus))
+
+}else{
+  r1a = (-b+(sqrt(b^2-(4*a*c))))/(2*a)
+  r1b = (-b-(sqrt(b^2-(4*a*c))))/(2*a)
+  print(paste0('NOT-complex root: ',round((r1a),4),' and ',round((r1b),4)))
+}
+
+
+# Calculating the Frequency
+phi1 = -0.5 # Note the signs of the variables
+phi2 = -0.6 # Note the signs of the variables
+
+f0 = (1/(2*pi))*acos((phi1/(2*sqrt(-phi2))))
+print(paste0('Frequency of complex conjugate root: ',round(f0,4)))

@@ -1,7 +1,7 @@
 #unit 3 Time Series - Lecture Break Out 1
 
 # Breakout 1
-
+library(tswge)
 #Part 1
 set.seed(2)
 x = gen.sigplusnoise.wge(n=100,coef = c(1,0),freq = c(.13,0),vara = 1)
