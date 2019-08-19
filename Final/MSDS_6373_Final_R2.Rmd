@@ -1,0 +1,470 @@
+---
+title: "MSDS_6373_Final"
+author: "Jeffrey Lancon"
+date: "August 17, 2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = FALSE)
+```
+
+## Time Series Final Take Home Question
+50 pts . This analysis question uses the same data as the cardiac mortality data that we used in class (Unit 12 and 13).  It is from the astsa package and is a dataset called lap.  Your overall goal is to forecast 5 weeks of respiratory mortality beyond the 508 observations you have.  Please complete an analysis that covers the following requirements:
+
+1.  (5 pts) Plot the respiratory mortality data you have.  
+2. (5 pts) Comment on it's stationarity or nonstationarity.
+3a. (10 pts)Perform a univariate analysis using
+	a) AR,ARMA, ARIMA, and/or ARUMA models (at least one)
+		i.  clearly explain how you arrived at your final model
+	b) using a neural network based model
+	c) an ensemble model with a model from (a) and (b).
+3b. (5 pts)Compare these models and describe which univariate model you feel is the best and why.
+4a.  (10 pts) Perform a multivariate analysis using at least one model from each category:
+	a. VAR or MLR with correlated errors
+i.  clearly explain how you arrived at your final model
+	b. mlp
+Be sure and use forecasted values of the predictors where appropriate.  
+4b. (5pts) Fit and evaluate an ensemble model from the models you fit in 4a.  
+4c. (5 pts) Compare these models and describe which multivariate model you feel is the best and why.
+
+5. (5 pts)Using the model you feel is most useful to forecasting the next 5 weeks of respiratory mortality (Beyond the 508 observation you have.)  
+
+
+Please submit an R Markdown file and a knit (pdf or Word) version of your analysis.  This knit document should contain well commented code and clear descriptions / explanations of your thoughts and finding. Please include the code in the knit document (even though this may make it much longer.) 
+
+
+```{r libraries, , echo=TRUE}
+#Exploratory Data Analysis
+library(tidyverse)
+library(astsa)
+library(tswge)
+library(ggplot2)
+library(nnfor)
+```
+
+## Loading Dataset
+
+Package(astsa) - Dataset 'lap': <https://cran.r-project.org/web/packages/astsa/astsa.pdf>
+
+```{r pressure, echo=TRUE}
+# Load Dataset
+data("lap")
+RM = lap
+RM[1:5,]
+```
+
+#### 1.  (5 pts) Plot the respiratory mortality data you have.  
+
+Plotting Realization of Dataset;  11 variables, 508 observations, Data Gathered on a weekly basis.
+
+#### Variables:
+
+Respiratory Mortality(Target), Temperature, Relative Humidity, Carbon Monoxide,Sulfur Dioxide,Nitrogen Dioxide
+```{r plots1, echo=TRUE}
+# Plottting original Data
+par(mfrow=c(3,2))
+plot(RM[,2],type='l',main="Respiratory Mortality",font.main=4,
+     col='red',
+     xlab="Weeks",
+     ylab="Resp Motality")
+plot(RM[,4],type='l',main="Temperature",font.main=4,
+     col='Blue',
+     xlab="Weeks",
+     ylab="Temperature °F")
+plot(RM[,5],type='l',main="Relative Humidity",font.main=4,
+     col='green',
+     xlab="Weeks",
+     ylab="Rel Humidity")
+plot(RM[,6],type='l',main="Carbon Monixide",font.main=4,
+     col='blue',
+     xlab="Weeks",
+     ylab="Carbon Monoxide")
+plot(RM[,7],type='l',main="Sulfur Dioxide",font.main=4,
+     col='blue',
+     xlab="Weeks",
+     ylab="Sulfur Dioxide")
+plot(RM[,8],type='l',main="Nitrogen Dioxide",font.main=4,
+     col='green',
+     xlab="Weeks",
+     ylab="Nitrogen Dioxide")
+```
+
+#### Remaining Variables:
+
+Respiratory Mortality(Target), Hydrocarbons, Ozone, Particulates
+```{r plots2, echo=TRUE}
+par(mfrow=c(2,2))
+plot(RM[,2],type='l',main="Respiratory Mortality",font.main=4,
+     col='red',
+     xlab="Weeks",
+     ylab="Resp Motality")
+plot(RM[,9],type='l',main="Hydrocarbons",font.main=4,
+     col='blue',
+     xlab="Weeks",
+     ylab="Hydrocarbons")
+plot(RM[,10],type='l',main="Ozone",font.main=4,
+     col='blue',
+     xlab="Weeks",
+     ylab="Ozone")
+plot(RM[,11],type='l',main="Particulates",font.main=4,
+     col='green',
+     xlab="Weeks",
+     ylab="Ozone")
+```
+
+### Plotting of Repiratory Variable; 
+
+Plotting Respiratory Mortality (RM) Realization, ACF, and Spectral Density
+
+RM Data appears to have a yearly frequency (52 segments), evident from the ACF and Spectral Density plots.
+
+#### 2. (5 pts) Comment on it's stationarity or nonstationarity.
+
+RM data appears to be nonstationary.  
+
+* Constant mean and variance are suspect with this realization
+
+* There appears to be a seasonal component within the data as well
+
+RM data also shows some peaks that do not follow a set pattern.
+
+```{r plotts, echo=TRUE}
+RMplot = plotts.sample.wge(RM[,2],lag.max = 60)
+```
+
+#### 3a.a) Perform a univariate analysis using; AR,ARMA, ARIMA, and/or ARUMA models (at least one)
+	
+i.  clearly explain how you arrived at your final model
+
+Since RM data appears to have a seasonal component, We first take the difference of the data with a seasonal factor of 52 (1 year)
+
+We will then plot the seasonally transformed data RM_52 and inspect it.
+
+```{r Uni1, echo=FALSE}
+RM_52 = artrans.wge(RM[,2], c(rep(0,51),1))
+plotts.sample.wge(RM_52,arlimits = TRUE)
+
+```
+
+
+Reviewing the yearly transformed data, there still appears to be some structure to the dataset.
+
+The next step is to determine what structure still remains in the dataset.
+
+We will use aic5.wge() to determine the order of the ARMA models.  We will use both 'bic' and 'aic'
+
+```{r aic5, echo=TRUE}
+#Univariate Response
+aic5.wge(RM_52, p=0:10,q=0:3, type = 'bic')  # Picked a p=4:q=0
+aic5.wge(RM_52, p=0:15,q=0:3, type = 'aic')  # Picked a p=4:q=0
+```
+
+Reviewing the results of the aic5 function, for both the BIC and AIC, we have chosen to model an ARMA(4,0) 
+
+To find the estimated parameters for the transformed Respiratory Data, we use the est.arma.wge() function from tswge.
+
+```{r param_est}
+est = est.arma.wge(RM_52, p = 4, q = 0)
+```
+
+We will then transform the data once again, using the phi's determined in the previous step. We will call this realization RM_52_AR4_MA0.
+
+```{r artrans}
+RM_52_AR4_MA0 = artrans.wge(RM_52,phi = est$phi)
+```
+
+The transformed realization RM_52_AR4_MA0 does appear to have no remaining structure.  We will test to see if there is structure remaining using ljung.wge() function, using both K=24 & 48.
+H0:  
+
+```{r ljung}
+ljung.wge(RM_52_AR4_MA0)
+ljung.wge(RM_52_AR4_MA0,K=48)
+```
+
+At 95% confidence (alpha=0.05), We fail to reject the null hypothesis of residual data is white noise (b=0), K=24; p-value 0.691 and K=48; p-value 0.945
+There appears to be no structure remaining in the transformed data
+
+
+
+To compare models, we will go ahead and estimate the last 26 observations of the Respiratory Mortality Data and use ASE as the metric to determine the preferred model.
+
+```{r ARUMAFore}
+
+RM_52_AR4_MA0.fore=fore.aruma.wge(RM[,2],phi = est$phi, s = 52, n.ahead = 26,lastn = TRUE,limits = FALSE)
+RM_52_AR4_MA0.fore$f
+```
+
+The ASE for the ARMA(4,0) with seasonal=52 model is:
+```{r ASE_ARMA}
+ASE_ARMA = mean((RM[,2][483:508] - RM_52_AR4_MA0.fore$f)^2)
+print(paste0('ASE for Univariate ARUMA(4,0,0) s=52 Model: ',ASE_ARMA))
+```
+
+
+#### Neural Network - Univariate
+#### 3a.b) Perform a univariate analysis using a neural network based model
+
+We will compare our Univariate ARMA results, using ASE, and compare that with a Neural Network model.
+
+For the NN model, we will train the model on first 482 observations and predict last 26 observation, and determining the ASE for the NN models
+
+```{r nn}
+set.seed(244)
+RM_small = window(RM, start = c(1970, 1),end = c(1979,14))  
+RM.fit.mlp= mlp(RM_small[,2], reps=50,comb='mean')
+RM.fit.mlp
+```
+
+Visualize the Neural Network
+```{r NNplot}
+plot(RM.fit.mlp)
+```
+
+Create a forecast for 26 segments ahead, using the Neural Network Model
+
+```{r RM.fore.mlp}
+RM.fore.mlp = forecast(RM.fit.mlp,h=26)
+plot(RM.fore.mlp)
+```
+
+The ASE for the univariate NN Model is:
+
+```{r ASE_MLP}
+ASE_MLP = mean((RM[,2][483:508] - RM.fore.mlp$mean)^2)
+print(paste0('ASE for Univariate Neural Network Model: ',ASE_MLP)) 
+```
+
+#### 3.a.c) an ensemble model with a model from (a) and (b).
+
+Create an Ensemble method.  We will create an Ensemble method utilizing the ARMA(4,0) and Neural Network Models by taking the average of the two predictions.
+
+We will judge the model's fit using ASE as well by predicting the observations on the same 26 observations.
+
+```{r ensemble_uni}
+
+ensemble_uni = (RM_52_AR4_MA0.fore$f + RM.fore.mlp$mean)/2
+
+ASE_ens = mean((RM[,2][483:508] - ensemble_uni)^2)
+print(paste0('ASE for Univariate Ensemble Model: ',ASE_ens))
+```
+
+#### Forecast Plots - ARMA, NN, Ensemble - Univariate
+
+```{r UnivariatePlot}
+plot(seq(470,508,1),RM[470:508,2], type = "l",
+     main='Predictions-Respiratory Mortality Univariate ARUMA, NN, Ensemble'
+     ,xlab="Weeks"
+     ,ylab="Mortality",
+     xlim=c(470, 510),
+     ylim=c(5.5,14),lwd=2)
+points(seq(482,508,1),c(RM[482,2],RM_52_AR4_MA0.fore$f),type='l',
+       col = 'red',lwd=1,lty=2)
+points(seq(482,508,1),c(RM[482,2],RM.fore.mlp$mean),type='l',
+       col = 'green',pch = 17,lwd=1,lty=3)
+points(seq(482,508,1),c(RM[482,2],ensemble_uni),type='l', 
+       col = 'blue',pch = 17,lwd=1,lty=6)
+abline(v=482, col="grey",lwd=1)
+legend('topleft', legend=c("Actual","ARMA", "NN","Ensemble"),
+        col=c("black","red", "green","blue"), lty=c(1,2,3,6), lwd=c(2,1,1,1),y.intersp=0.75)
+```
+
+
+With the above plot, we are able to clearly see how the 2 univariate models (ARUMA,NN) and the Ensemble methods compare to each other:
+
+The ARUMA(4,0,0), with a seasonality of s=52 preformed the best.  The predictions tend to match the actual observation values well.  The up-and-down patterns sometimes become mirrored from the actual data.
+
+The univariate Neural Network model tends to underestimate the mortality figures across the board.
+
+The ensemble model, since it is the average of the 2 models, and given the performance of the other models, it would be expected that it would be better than the NN but not better than the ARUMA with Seasonality.
+
+
+
+### Multivariate Analysis
+
+#### 4a.a)  Perform a multivariate analysis using at least one model from: VAR or MLR with correlated errors
+
+i.  clearly explain how you arrived at your final model
+
+Below, we will take the lessens learned from the Univariate model and utilize the seasonality component of the data s=52.  We will begin by performing artrans on all the explanitory variables as well as the target variable Respiratory Mortality.
+
+We will also truncate the dataset to only include the first 482 observations.  The last 26 will be used for prediction purposes, and model comparision, using ASE values.
+
+```{r VAR}
+############ VAR MODELS ##########################
+
+#VAR Model 1 Forecasts Seasonally Differenced Data 
+
+#Difference all series to make them stationary (assumptoin of VAR)
+# Doesn't have to be white... just stationary
+library(vars)
+
+RM_small = window(RM, start = c(1970, 1),end = c(1979,14))  
+RMS_52 = artrans.wge(RM_small[,2], c(rep(0,51),1))
+RMS_52_tmp = artrans.wge(RM_small[,4], c(rep(0,51),1))
+RMS_52_rh = artrans.wge(RM_small[,5], c(rep(0,51),1))
+RMS_52_co = artrans.wge(RM_small[,6], c(rep(0,51),1))
+RMS_52_so2 = artrans.wge(RM_small[,7], c(rep(0,51),1))
+RMS_52_no2 = artrans.wge(RM_small[,8], c(rep(0,51),1))
+RMS_52_hyd = artrans.wge(RM_small[,9], c(rep(0,51),1))
+RMS_52_o3 = artrans.wge(RM_small[,10], c(rep(0,51),1))
+RMS_52_part = artrans.wge(RM_small[,11], c(rep(0,51),1))
+```
+
+
+We will use VARSelect, using multiple combinations of target and explanatory variable to determine the best combination
+After trying dozens of model Target & Explanatory combinations,using ASE as the metric, the model with the best ASE score ended up utilizing 1 Target and 2 Explanatory (Temperature, Particulates).  The model also contains trend and constant components.
+
+This is ironic because these are the same factors that were used for the cardiac mortality study.
+
+```{r VARSelect}
+#VARSelect on Differenced Data chooses 1
+VARselect(cbind(RMS_52,RMS_52_tmp, RMS_52_part),lag.max = 20, type = "both")
+    # AIC(n)  HQ(n)  SC(n) FPE(n) 
+    # 5      4      1      5 
+```
+
+The VARSelect function suggest we use either a p=5, using AIC  or a p=1 using BIC.  After a little additional playing around with parameters, the Model with the lowest ASE value utilized a p=2.  For the analysis, we will be using p=2.
+
+
+We predict the differences using 
+
+```{r DiffVAR}
+RMortDiffVAR = VAR(cbind(RMS_52,RMS_52_tmp, RMS_52_part),type = "both",p = 2)
+preds=predict(RMortDiffVAR,n.ahead=26)
+#print(paste0('VAR Difference Prediction:',preds$fcst))
+```
+
+We have predicted differences .... calculate actual respiratory mortalities 
+
+```{r RestMortVAR}
+startingPoints = RM[,2][483:508]
+RMortForcasts = preds$fcst$RMS_52[,1:3] + startingPoints
+```
+
+We will judge the VAR model's fit using ASE, by predicting the last 26 observations.
+
+```{r ASE_VAR}
+ASE_VAR = mean((RM[,2][483:508] - RMortForcasts[,1])^2)
+print(paste0('ASE for Multivariate VAR Model: ',ASE_VAR))
+```
+
+
+
+#### 4a.b)  Perform a multivariate analysis using a multivariate MLP model
+
+
+We will be developing a multivariate neural network model to predict the respiratory mortality rate.  For this model, we will be using all (9) explanitory variables in the model.  Basically trowing the 'kitchen-sink' at the analysis.  
+
+We will also truncate the dataset to only include the first 482 observations.  The last 26 will be used for prediction purposes, and model comparision, using ASE values.
+
+```{r MLP_MV}
+set.seed(254)
+RM_small = window(RM, start = c(1970, 1),end = c(1979,14))
+
+RM_smallDF = data.frame(week=seq(1,482),RM_small[,c(4:11)])
+fit.mlp = mlp(ts(RM_small[,2]),reps = 50,comb = "mean",xreg = RM_smallDF)
+fit.mlp
+```
+
+Visualize the Multivariate Neural Network
+
+```{r MV_mlp}
+plot(fit.mlp)
+```
+
+
+Create a forecast for 26 segments ahead, using the Multivariate Neural Network Model and plot the results
+
+```{r MV_MLP_Fore}
+RMDF = data.frame(week=seq(1,508),RM[,c(4:11)])
+fore.xreg.mlp = forecast(fit.mlp, h = 26, xreg = RMDF)
+plot(fore.xreg.mlp)
+```
+
+The ASE for the Miltivariate NN Model is:
+
+```{r ASE_MV_mlp}
+ASE.xreg.mlp = mean((RM[,2][483:508] - fore.xreg.mlp$mean)^2)
+print(paste0('ASE for Multivariate NN Model: ',ASE.xreg.mlp))
+```
+
+#### 4b)  Fit and evaluate an ensemble model from the models you fit in 4a.
+
+We will create an Ensemble method utilizing the mulitvariate VAR and Neural Network Models by taking the average of the two predictions.
+
+We will judge the model's fit using ASE as well by predicting the observations on the same 26 observations.
+
+```{r ensemble_MV}
+ensemble_multi = (RMortForcasts[,1] + fore.xreg.mlp$mean)/2
+
+ASE_ens_MV = mean((RM[,2][483:508] - ensemble_multi)^2)
+print(paste0('ASE for Multivariate Ensemble Model: ',ASE_ens_MV))
+```
+
+
+```{r MultiPlot}
+plot(seq(470,508,1),RM[470:508,2], type = "l",
+     main='Predictions-Repiratory Mortality Multivariate VAR, NN, Ensemble'
+     ,xlab="Weeks"
+     ,ylab="Mortality",
+     xlim=c(470, 510),
+     ylim=c(5.5,14),lwd=2)
+points(seq(482,508,1),c(RM[482,2],RMortForcasts[,1]),type='l',
+       col = 'red',lwd=1,lty=2)
+points(seq(482,508,1),c(RM[482,2],fore.xreg.mlp$mean),type='l',
+       col = 'green',pch = 17,lwd=1,lty=3)
+points(seq(482,508,1),c(RM[482,2],ensemble_multi),type='l', 
+       col = 'blue',pch = 17,lwd=1,lty=6)
+abline(v=482, col="grey",lwd=2)
+legend('topleft', legend=c("Actual","VAR", "NN","Ensemble"),
+       col=c("black","red", "green","blue"), lty=c(1,2,3,6), lwd=c(2,1,1,1),y.intersp=0.75)
+```
+
+#### 4c)  Compare the models and describe which multivariate model you feel is the best and why.
+
+With the above plot, we are able to clearly see how the 2 Multivariate models (VAR,NN) and the Ensemble methods compare to each other:
+
+The VAR model preformed the best.  The predictions tend to match the actual observation values very well.  It also had an extremely small ASE of 0.067.  This was by far, the best forecasting model we explored.
+
+The Multivariate Neural Network model tends to underestimate the mortality figures across the board, with exception of the initial predictions.  The predicted response (variablity of observations) appears to be much more muted than the actual observations
+
+The ensemble model, since it is the average of the 2 models, and given the performance of the other models, it would be expected that it would be better than the NN but not better than the VAR.
+
+
+
+```{r VAR_5Ahead}
+#RM_52 = artrans.wge(RM[,2], c(rep(0,51),1))
+#RM_52_tmp = artrans.wge(RM[,4], c(rep(0,51),1))
+#RM_52_part = artrans.wge(RM[,11], c(rep(0,51),1))
+
+#RMortDiffVAR_full = VAR(cbind(RM_52,RM_52_tmp, RM_52_part),type = "both",p = 2)
+#preds_full=predict(RMortDiffVAR_full,n.ahead=5)
+
+#VAR with p = 2
+RMortVAR_full = VAR(cbind(RM[,2], RM[,4], RM[,11]),season = 52, type = "both",p = 2)
+preds=predict(RMortVAR_full,n.ahead=5)
+print(paste0('VAR Model Predictions:',preds$fcst$RM...2.[,1]))
+```
+
+
+```{r abc}
+plot(seq(470,508,1),RM[470:508,2], type = "l",
+     main='Predictions-Repiratory Mortality VAR Model (5 wks)'
+     ,xlab="Weeks"
+     ,ylab="Mortality",
+     xlim=c(470, 515),
+     ylim=c(5.5,14),lwd=2)
+points(seq(508,513,1),c(RM[508,2],preds$fcst$RM...2.[,1]),type='l',
+       col = 'red',lwd=2,lty=2)
+abline(v=508, col="grey",lwd=2)
+legend('topleft', legend=c("Actual","VAR"),
+       col=c("black","red"), lty=c(1,2), lwd=c(2,2),y.intersp=0.75)
+```
+
+
+
+I, Jeffrey Lancon, abided by the SMU Honor Code and did not communicate about the content of this exam with anyone except for Bivin Sadler.
